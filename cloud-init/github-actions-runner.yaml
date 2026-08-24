@@ -1,0 +1,79 @@
+#cloud-config
+
+# Timeweb Cloud: автоматическая установка GitHub Actions runner для Sollarix Software.
+#
+# Перед вставкой в панель Timeweb замените только ЗАМЕНИТЕ_КОРОТКОЖИВУЩИМ_ТОКЕНОМ.
+# Токен берётся в GitHub:
+# Organization Settings -> Actions -> Runners -> New self-hosted runner.
+# Не сохраняйте заполненный токен в GitHub: он нужен только для регистрации.
+
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+
+write_files:
+  - path: /root/sollarix-runner.env
+    owner: root:root
+    permissions: "0600"
+    content: |
+      RUNNER_TOKEN='ЗАМЕНИТЕ_КОРОТКОЖИВУЩИМ_ТОКЕНОМ'
+      RUNNER_SCOPE_URL='https://github.com/Sollarix-Software'
+      RUNNER_NAME='AUTO'
+      RUNNER_LABELS='GAR-1'
+      RUNNER_GROUP='Default'
+      RUNNER_USER='github-runner'
+      RUNNER_DIR='/opt/actions-runner'
+      RUNNER_WORK_DIR='_work'
+      SWAP_SIZE_GB='2'
+
+  - path: /root/bootstrap-sollarix-runner.sh
+    owner: root:root
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      set -Eeuo pipefail
+      umask 077
+
+      readonly env_file=/root/sollarix-runner.env
+      [[ -r "$env_file" ]] || {
+        echo "Не найден файл настроек $env_file" >&2
+        exit 1
+      }
+
+      set -a
+      # shellcheck disable=SC1090
+      source "$env_file"
+      set +a
+
+      [[ "${RUNNER_TOKEN:-}" != "ЗАМЕНИТЕ_КОРОТКОЖИВУЩИМ_ТОКЕНОМ" ]] || {
+        echo "Замените плейсхолдер RUNNER_TOKEN в cloud-init перед созданием сервера." >&2
+        exit 1
+      }
+      [[ -n "${RUNNER_TOKEN:-}" ]] || {
+        echo "RUNNER_TOKEN не задан." >&2
+        exit 1
+      }
+
+      if [[ "${RUNNER_NAME:-AUTO}" == "AUTO" ]]; then
+        unset RUNNER_NAME
+      fi
+
+      installer="$(mktemp /root/install-github-actions-runner.XXXXXX.sh)"
+      cleanup() {
+        unset RUNNER_TOKEN
+        rm -f "$env_file" "$installer"
+      }
+      trap cleanup EXIT
+
+      curl --fail --location --proto '=https' --tlsv1.2 \
+        --output "$installer" \
+        https://raw.githubusercontent.com/Sollarix-Software/.github/main/scripts/install-github-actions-runner.sh
+      chmod 0700 "$installer"
+      bash "$installer"
+
+runcmd:
+  - [bash, /root/bootstrap-sollarix-runner.sh]
+
+final_message: "Cloud-init Sollarix завершён. Проверка: systemctl status 'actions.runner.*' --no-pager"
