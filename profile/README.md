@@ -1,12 +1,38 @@
-<!--
+# Sollarix Software
 
-**Here are some ideas to get you started:**
+Мы — небольшая независимая команда, которая создаёт игровые продукты и собственную
+инфраструктуру для их надёжной работы.
 
-🙋‍♀️ A short introduction - what is your organization all about?
-🌈 Contribution guidelines - how can the community get involved?
-👩‍💻 Useful resources - where can the community find your docs? Is there anything else the community should know?
-🍿 Fun facts - what does your team eat for breakfast?
-🧙 Remember, you can do mighty things with the power of [Markdown](https://docs.github.com/github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
--->
+Главное направление сейчас — **SollarixMC**: развивающаяся Minecraft-сеть с
+отдельными игровыми режимами, единым ядром, панелью управления и автоматизированной
+серверной инфраструктурой. Проект находится в активной разработке, поэтому состав
+компонентов, интерфейсы и сроки могут меняться.
 
-## Sollarix Software
+## Публичные проекты
+
+- [CloudNet](https://github.com/Sollarix-Software/CloudNet) — наш форк CloudNet для
+  интеграции с инфраструктурой SollarixMC и управления жизненным циклом серверов.
+- [Folia](https://github.com/Sollarix-Software/Folia) — форк Folia, используемый
+  для совместимости и работы с региональной многопоточностью.
+- [.github](https://github.com/Sollarix-Software/.github) — общие материалы и
+  инструменты организации, включая установщик self-hosted GitHub Actions runner.
+
+Публичные форки сохраняют лицензии, историю и авторство исходных проектов. Наши
+изменения сосредоточены на совместимости и потребностях собственной платформы.
+
+## Как мы разрабатываем
+
+- фиксируем архитектурные границы и владельцев данных;
+- описываем межсервисные контракты через Protobuf и gRPC;
+- проверяем изменения через GitHub Actions;
+- отделяем игровую логику, управление инфраструктурой и административные интерфейсы;
+- не публикуем секреты, реальные сертификаты и пользовательские данные;
+- внедряем изменения небольшими проверяемыми этапами.
+
+## Состояние проектов
+
+Часть репозиториев закрыта, пока продукты не готовы к публичному использованию.
+Публичный репозиторий или документация не означают, что соответствующий сервис
+уже запущен либо имеет объявленную дату релиза.
+
+По вопросам конкретного публичного проекта используйте его Issues.
