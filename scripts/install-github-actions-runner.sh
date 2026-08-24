@@ -78,9 +78,11 @@ apt-get install -y \
   jq \
   libssl-dev \
   ninja-build \
+  openssl \
   pkg-config \
   postgresql-client \
   protobuf-compiler \
+  redis-tools \
   tar \
   unzip \
   zlib1g-dev
