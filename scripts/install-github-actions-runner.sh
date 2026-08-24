@@ -89,6 +89,11 @@ apt-get install -y \
 
 systemctl enable --now docker
 
+log "Настройка памяти для Redis и контейнерных проверок"
+install -d -m 0755 /etc/sysctl.d
+printf 'vm.overcommit_memory = 1\n' > /etc/sysctl.d/99-sollarix-runner.conf
+sysctl -w vm.overcommit_memory=1 >/dev/null
+
 if ! id "$RUNNER_USER" >/dev/null 2>&1; then
   log "Создание пользователя $RUNNER_USER"
   adduser --disabled-password --gecos "" "$RUNNER_USER"
@@ -178,6 +183,24 @@ unset RUNNER_TOKEN
 log "Установка и запуск systemd-службы"
 cd "$RUNNER_DIR"
 ./svc.sh install "$RUNNER_USER"
+
+service_name=""
+for unit_file in /etc/systemd/system/actions.runner.*.service; do
+  [[ -f "$unit_file" ]] || continue
+  if grep -Fq "$RUNNER_DIR/runsvc.sh" "$unit_file"; then
+    service_name="$(basename "$unit_file")"
+    break
+  fi
+done
+[[ -n "$service_name" ]] || fail "не удалось определить созданную systemd-службу runner"
+
+install -d -m 0755 "/etc/systemd/system/${service_name}.d"
+cat > "/etc/systemd/system/${service_name}.d/restart.conf" <<'SYSTEMD'
+[Service]
+Restart=always
+RestartSec=5s
+SYSTEMD
+systemctl daemon-reload
 
 install -d -m 0755 /etc/needrestart/conf.d
 printf '%s\n' "\$nrconf{override_rc}{qr(^actions\\.runner\\..+\\.service\$)} = 0;" \
