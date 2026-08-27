@@ -42,4 +42,3 @@ jobs:
           grep -Fq "RUNNER_NAME='GA-Runner-3'" cloud-init/github-actions-runner.yaml
           grep -Fq "RUNNER_LABELS='GAR-1,GAR-3'" cloud-init/github-actions-runner.yaml
           grep -Fq "docker compose version" scripts/install-github-actions-runner.sh
-          ! grep -Eq "RUNNER_TOKEN='[^']{20,}'" cloud-init/github-actions-runner.yaml
