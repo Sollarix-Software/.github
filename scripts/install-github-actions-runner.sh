@@ -17,6 +17,8 @@ umask 027
 #   RUNNER_WORK_DIR=_work
 #   RUNNER_VERSION=2.336.0
 #   RUNNER_SHA256=<контрольная сумма из официального релиза>
+#   COMPOSE_VERSION=5.5.0
+#   COMPOSE_SHA256=<контрольная сумма официального compose binary>
 #   SWAP_SIZE_GB=2
 #
 # RUNNER_TOKEN можно передать через окружение для автоматизации. Если он не
@@ -46,6 +48,7 @@ RUNNER_USER="${RUNNER_USER:-github-runner}"
 RUNNER_DIR="${RUNNER_DIR:-/opt/actions-runner}"
 RUNNER_WORK_DIR="${RUNNER_WORK_DIR:-_work}"
 SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
+COMPOSE_VERSION="${COMPOSE_VERSION:-}"
 
 [[ "$RUNNER_SCOPE_URL" == https://github.com/* ]] || fail "RUNNER_SCOPE_URL должен начинаться с https://github.com/"
 [[ "$RUNNER_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || fail "недопустимое имя runner"
@@ -58,9 +61,18 @@ SWAP_SIZE_GB="${SWAP_SIZE_GB:-2}"
 [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] || fail "SWAP_SIZE_GB должен быть целым числом"
 
 case "$(uname -m)" in
-  x86_64) RUNNER_ARCH=x64 ;;
-  aarch64 | arm64) RUNNER_ARCH=arm64 ;;
-  armv7l) RUNNER_ARCH=arm ;;
+  x86_64)
+    RUNNER_ARCH=x64
+    COMPOSE_ARCH=x86_64
+    ;;
+  aarch64 | arm64)
+    RUNNER_ARCH=arm64
+    COMPOSE_ARCH=aarch64
+    ;;
+  armv7l)
+    RUNNER_ARCH=arm
+    COMPOSE_ARCH=armv7
+    ;;
   *) fail "неподдерживаемая архитектура: $(uname -m)" ;;
 esac
 
@@ -83,11 +95,45 @@ apt-get install -y \
   postgresql-client \
   protobuf-compiler \
   redis-tools \
+  sudo \
   tar \
   unzip \
+  util-linux \
   zlib1g-dev
 
 systemctl enable --now docker
+
+log "Установка Docker Compose CLI plugin"
+if [[ -n "$COMPOSE_VERSION" ]]; then
+  compose_version="${COMPOSE_VERSION#v}"
+  compose_release_api="https://api.github.com/repos/docker/compose/releases/tags/v${compose_version}"
+else
+  compose_release_api="https://api.github.com/repos/docker/compose/releases/latest"
+fi
+compose_release_json="$(curl -fsSL \
+  -H 'Accept: application/vnd.github+json' \
+  -H 'X-GitHub-Api-Version: 2022-11-28' \
+  "$compose_release_api")"
+compose_version="$(jq -er '.tag_name | ltrimstr("v")' <<<"$compose_release_json")"
+compose_asset="docker-compose-linux-${COMPOSE_ARCH}"
+compose_download_url="https://github.com/docker/compose/releases/download/v${compose_version}/${compose_asset}"
+compose_checksum_url="${compose_download_url}.sha256"
+compose_checksum="${COMPOSE_SHA256:-}"
+if [[ -z "$compose_checksum" ]]; then
+  compose_checksum="$(curl --fail --location --proto '=https' --tlsv1.2 "$compose_checksum_url" | awk 'NR == 1 { print $1 }')"
+fi
+[[ "$compose_checksum" =~ ^[A-Fa-f0-9]{64}$ ]] ||
+  fail "не удалось получить SHA-256 Docker Compose; задайте COMPOSE_SHA256"
+
+compose_tmp="$(mktemp)"
+curl --fail --location --proto '=https' --tlsv1.2 \
+  --output "$compose_tmp" "$compose_download_url"
+printf '%s  %s\n' "$compose_checksum" "$compose_tmp" | sha256sum --check --status ||
+  fail "контрольная сумма Docker Compose не совпала"
+install -d -m 0755 /usr/local/lib/docker/cli-plugins
+install -m 0755 "$compose_tmp" /usr/local/lib/docker/cli-plugins/docker-compose
+rm -f "$compose_tmp"
+docker compose version
 
 log "Настройка памяти для Redis и контейнерных проверок"
 install -d -m 0755 /etc/sysctl.d
@@ -160,6 +206,10 @@ printf '%s  %s\n' "$checksum" "$archive_path" | sha256sum --check --status ||
 
 tar -xzf "$archive_path" -C "$RUNNER_DIR"
 rm -f "$archive_path"
+
+log "Установка официальных системных зависимостей GitHub Actions runner"
+"$RUNNER_DIR/bin/installdependencies.sh"
+
 chown -R "$RUNNER_USER:$RUNNER_USER" "$RUNNER_DIR"
 
 if [[ -z "${RUNNER_TOKEN:-}" ]]; then
@@ -208,8 +258,11 @@ printf '%s\n' "\$nrconf{override_rc}{qr(^actions\\.runner\\..+\\.service\$)} = 0
 
 ./svc.sh start
 
-log "Проверка Docker от имени runner"
+log "Проверка Docker и Compose от имени runner"
 sudo -u "$RUNNER_USER" docker info --format 'Docker {{.ServerVersion}}'
+sudo -u "$RUNNER_USER" docker compose version
+command -v flock >/dev/null 2>&1 || fail "после установки отсутствует flock"
+command -v psql >/dev/null 2>&1 || fail "после установки отсутствует psql"
 ./svc.sh status
 
 printf '\nГотово. Runner: %s; метки: self-hosted, Linux, %s, %s\n' \
