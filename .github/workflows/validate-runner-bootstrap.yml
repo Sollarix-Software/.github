@@ -1,0 +1,44 @@
+name: validate-runner-bootstrap
+
+on:
+  pull_request:
+    paths:
+      - "scripts/install-github-actions-runner.sh"
+      - "cloud-init/github-actions-runner.yaml"
+      - ".github/workflows/validate-runner-bootstrap.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/install-github-actions-runner.sh"
+      - "cloud-init/github-actions-runner.yaml"
+      - ".github/workflows/validate-runner-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Проверить Bash
+        run: |
+          bash -n scripts/install-github-actions-runner.sh
+          shellcheck scripts/install-github-actions-runner.sh
+      - name: Проверить cloud-init YAML
+        run: |
+          ruby -e '
+            require "yaml"
+            data = YAML.safe_load(File.read(ARGV.fetch(0)), aliases: false)
+            abort "cloud-init должен быть объектом" unless data.is_a?(Hash)
+            abort "отсутствует write_files" unless data["write_files"].is_a?(Array)
+            abort "отсутствует runcmd" unless data["runcmd"].is_a?(Array)
+          ' cloud-init/github-actions-runner.yaml
+      - name: Проверить безопасность шаблона
+        run: |
+          grep -Fq "RUNNER_TOKEN='ЗАМЕНИТЕ_КОРОТКОЖИВУЩИМ_ТОКЕНОМ'" cloud-init/github-actions-runner.yaml
+          grep -Fq "RUNNER_NAME='GA-Runner-3'" cloud-init/github-actions-runner.yaml
+          grep -Fq "RUNNER_LABELS='GAR-1,GAR-3'" cloud-init/github-actions-runner.yaml
+          grep -Fq "docker compose version" scripts/install-github-actions-runner.sh
