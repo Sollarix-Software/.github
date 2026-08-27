@@ -36,6 +36,7 @@ fail() {
 
 [[ "$(id -u)" -eq 0 ]] || fail "запустите скрипт через sudo или от root"
 
+# shellcheck disable=SC1091
 source /etc/os-release
 [[ "${ID:-}" == "ubuntu" ]] || fail "поддерживается только Ubuntu"
 command -v systemctl >/dev/null 2>&1 || fail "нужен systemd"
